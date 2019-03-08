@@ -1,4 +1,5 @@
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
 import json
 import sys
 import logging
@@ -6,14 +7,13 @@ import inspect
 import os
 
 def getConfig(filename):
-    #data = None
     with open(filename) as configFile:
-        data = json.load(configFile)
-
+		data = json.load(configFile)
     return data
 
 def getSource(spark, log, config):
-
+    print(config)
+    print("This is the test print: ",config['input']['isDirectHive'])
     if(config['input']['isDirectHive']):
         log.info("Hive Direct Data Source")
         sourceData = spark.sql(config['input']['query'])
@@ -46,8 +46,7 @@ def getLogger(logFilePath):
     return logger
 
 def getSparkSession():
-    spark = SparkSession.Builder \
-        .appName("Data Validation") \
+    spark = SparkSession.Builder().master("yarn-client").appName("Data Validation") \
         .config("hive.exec.dynamic.partition", "true") \
         .config("hive.exec.dynamic.partition.mode", "nonstrict") \
         .config("hive.warehouse.data.skipTrash", "true") \
@@ -79,19 +78,18 @@ def duplicateCheck(sourceData,config,log):
 def nullCheck(sourceData,config,log):
     cols = sourceData.columns
     for x in cols:
-        if(sourceData.count() == sourceData.where(sourceData.col(x).isNull).count()):
+        if(sourceData.count() == sourceData.where(sourceData[x].isNull()).count()):
             log.error(x + " is null")
-        #else:
-        #    print(x + " is not null")
 
 
 if __name__ =='__main__':
     configFileName = sys.argv[1]
+    print(configFileName)
     config = getConfig(configFileName)
     log = getLogger(config['log']['fileName'])
     log.info("Data Sanity Check Started, executed by"+os.getlogin())
     spark = getSparkSession()
-    sourceData = getSource(spark,config,log)
+    sourceData = getSource(spark,log,config)
     if config['test']['duplicateCheck'] :
         duplicateCheck(sourceData,config,log)
 
